@@ -49,7 +49,7 @@ public sealed class MainForm : Form
     private void InitializeComponent()
     {
         SuspendLayout();
-        Text            = "HGER Save Editor";
+        Text            = "HGER Save Editor v0.1.1";
         Size            = new Size(930, 620);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox     = false;
@@ -58,6 +58,7 @@ public sealed class MainForm : Form
         BackColor       = Color.FromArgb(30, 30, 30);
         ForeColor       = Color.White;
         AllowDrop       = true;
+        Icon            = Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
         DragEnter       += OnDragEnter;
         DragDrop        += OnDragDrop;
 
@@ -98,8 +99,7 @@ public sealed class MainForm : Form
         var aboutItem = new ToolStripMenuItem("정보(&A)");
         aboutItem.Click += (_, _) => MessageBox.Show(
             "HGER Save Editor\nhg-engine 기반 ROM 핵 세이브 편집기\n\n" +
-            "※ Gen4 HG/SS 세이브 포맷 기준\n" +
-            "오프셋이 다를 경우 SAV4HGSS.cs를 수정하세요.",
+            "지원 버전: HGER 0.9.7",
             "정보", MessageBoxButtons.OK, MessageBoxIcon.Information);
         helpMenu.DropDownItems.Add(aboutItem);
         _menuStrip.Items.Add(helpMenu);
