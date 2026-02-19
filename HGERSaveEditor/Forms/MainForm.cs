@@ -373,6 +373,8 @@ public sealed class MainForm : Form
             ? _save.GetPartySlot(slotIndex)
             : _save.GetBoxSlot(boxIndex, slotIndex);
 
+        if (pk.IsEmpty) return;
+
         using var editor = new PokemonEditorForm(pk, _save.TrainerName, _save.TID, _save.SID, _save.Gender);
         if (editor.ShowDialog() != DialogResult.OK) return;
 
