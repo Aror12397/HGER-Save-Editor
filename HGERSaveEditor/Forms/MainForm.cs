@@ -36,11 +36,12 @@ public sealed class MainForm : Form
     public MainForm(string? initialFile = null)
     {
         InitializeComponent();
-        GameData.Initialize("data");
-        GameData.LoadBaseStats(Path.Combine("data", "basestats.csv"));
-        GameData.LoadGrowthRates(Path.Combine("data", "growth_rates.csv"));
-        GameData.InitializeSprites(Path.Combine("data", "sprites"));
-        GameData.LoadFormNames(Path.Combine("data", "forms.txt"));
+        var dataDir = Path.Combine(AppContext.BaseDirectory, "data");
+        GameData.Initialize(dataDir);
+        GameData.LoadBaseStats(Path.Combine(dataDir, "basestats.csv"));
+        GameData.LoadGrowthRates(Path.Combine(dataDir, "growth_rates.csv"));
+        GameData.InitializeSprites(Path.Combine(dataDir, "sprites"));
+        GameData.LoadFormNames(Path.Combine(dataDir, "forms.txt"));
 
         if (initialFile != null)
             Load += (_, _) => LoadFile(initialFile);
