@@ -6,8 +6,6 @@ hg-engine 기반 포켓몬 롬 핵(HGER)의 `.sav` 파일을 편집하는 Window
 
 [최신 릴리스](https://github.com/Aror12397/HGER-Save-Editor/releases/latest)에서 zip 파일을 받아 압축 해제 후 실행하세요.
 
-실행 전 [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) 설치가 필요합니다.
-
 ## 기능
 
 - **파티 / 박스 편집** — 6슬롯 파티, 18박스 × 30슬롯 박스 지원
@@ -24,6 +22,3 @@ hg-engine 기반 포켓몬 롬 핵(HGER)의 `.sav` 파일을 편집하는 Window
 - 빈 슬롯에 새로운 포켓몬을 생성하는 기능은 지원하지 않습니다. 기존 포켓몬 편집만 가능합니다.
 - PID, 이로치 여부, 성격, 성별은 읽기 전용으로 수정할 수 없습니다.
 
-## 데이터 파일 커스터마이즈
-
-`data/` 폴더의 텍스트 파일을 직접 수정하여 hg-engine 추가 포켓몬/기술에 대응할 수 있습니다.
