@@ -10,10 +10,10 @@ namespace HGERSaveEditor.Core;
 ///   0x00-0x03 : PID (uint32)
 ///   0x04-0x05 : Sanity (uint16, 보통 0)
 ///   0x06-0x07 : Checksum (uint16)
-///   0x08-0x27 : Block A
-///   0x28-0x47 : Block B
-///   0x48-0x67 : Block C
-///   0x68-0x87 : Block D
+///   0x08-0x27 : Block A — 종족·아이템·TID·SID·경험치·친밀도·특성·EV
+///   0x28-0x47 : Block B — 기술·PP·PPUp·IV·폼
+///   0x48-0x67 : Block C — 닉네임·출신 게임
+///   0x68-0x87 : Block D — OT이름·날짜·장소·볼·만난 레벨
 ///   0x88-0xEB : Battle Stats (파티 전용, 100바이트)
 /// </summary>
 public class PK4
@@ -24,50 +24,29 @@ public class PK4
 
     public PK4(byte[] rawEncrypted)
     {
-        var (data, sv, ivAtStdLoc) = PokeCrypto.DecryptPK4WithOrder(rawEncrypted);
-        _data = data;
-        _shuffleOrder = sv;
-        _ivAtStdLoc = ivAtStdLoc;
+        _data = PokeCrypto.DecryptPK4(rawEncrypted);
     }
 
-    // 복호화된 데이터로 직접 생성 (내부용, 체크섬 검사 생략)
-    // forceStdLayout=true: 표준 Gen4 오프셋 강제 (새 포켓몬 생성 시)
-    private PK4(byte[] decryptedData, bool forceStdLayout)
+    // 복호화된 데이터로 직접 생성 (내부용)
+    // skipChecksumValidation=true: Empty/CreateBlank에서 체크섬 검사 생략
+    private PK4(byte[] decryptedData, bool skipChecksumValidation = false)
     {
         _data = decryptedData;
-        _skipChecksumValidation = true;
-        _ivAtStdLoc = forceStdLayout || BitConverter.ToUInt32(_data, 0x38) != 0;
+        _skipChecksumValidation = skipChecksumValidation;
     }
 
     // Empty 인스턴스는 체크섬 검사 없이 항상 빈 슬롯으로 취급
     private readonly bool _skipChecksumValidation;
 
-    // 복호화 시 감지된 블록 셔플 순서 (재암호화에 동일 순서 사용)
-    // PID 변경 시 PID setter가 -1로 리셋 → EncryptPK4가 새 PID%24 사용
-    // 게임은 원본 ROM의 PID%24 셔플을 사용하므로 (save.c에 별도 암호화 없음) 정합성 유지
-    private int _shuffleOrder = -1;
-
-    // IVData 위치: true=표준 0x38(Gen4), false=hg-engine 0x78
-    private readonly bool _ivAtStdLoc;
-
-    /// <summary>복호화된 상태에서 PK4를 복제 (sv, _ivAtStdLoc 보존)</summary>
-    private PK4(byte[] data, int shuffleOrder, bool ivAtStdLoc)
-    {
-        _data = data;
-        _shuffleOrder = shuffleOrder;
-        _ivAtStdLoc = ivAtStdLoc;
-    }
-
-    /// <summary>복호화 상태를 유지하면서 PK4 복제. 암복호화 왕복 없음.</summary>
-    public PK4 Clone() => new((byte[])_data.Clone(), _shuffleOrder, _ivAtStdLoc);
+    /// <summary>복호화된 상태에서 PK4를 복제</summary>
+    public PK4 Clone() => new((byte[])_data.Clone(), _skipChecksumValidation);
 
     /// <summary>빈 포켓몬 슬롯을 나타내는 더미 PK4 생성</summary>
-    public static PK4 Empty => new(new byte[PokeCrypto.SIZE_4STORED], false);
+    public static PK4 Empty => new(new byte[PokeCrypto.SIZE_4STORED], true);
 
     /// <summary>
     /// 지정된 크기의 빈 PK4를 생성 (새 포켓몬용).
-    /// _shuffleOrder = -1이므로 WriteToRaw()에서 PID%24 사용.
-    /// 표준 Gen4 레이아웃 사용 (닉네임 0x48, OT 0x68, 기술 0x28) — PID%24 셔플과 일치.
+    /// 표준 Gen4 레이아웃 사용 (닉네임 0x48, OT 0x68, 기술 0x28).
     /// </summary>
     public static PK4 CreateBlank(int dataSize) => new(new byte[dataSize], true);
 
@@ -86,7 +65,6 @@ public class PK4
     }
 
     // ==================== Block A (0x08-0x27) ====================
-    // 오프셋: 복호화 데이터 내에서의 절대 위치
 
     // hg-engine: 494번 이상 포켓몬은 세이브에 +50 된 값으로 저장됨
     // 표시 ID 494 → 저장 값 544, 표시 ID 495 → 저장 값 545, ...
@@ -173,72 +151,37 @@ public class PK4
     public byte EV_SpA { get => _data[0x1C]; set => _data[0x1C] = value; }
     public byte EV_SpD { get => _data[0x1D]; set => _data[0x1D] = value; }
 
-    // ==================== 블록 로테이션 오프셋 ====================
-    //
-    // hg-engine은 Block B/C/D의 콘텐츠를 순환 이동한다:
-    //   표준 Gen4  : B=기술/IVs  C=닉네임  D=OT이름/날짜/볼
-    //   hg-engine  : B=닉네임    C=OT이름/날짜/볼  D=기술/IVs
-    //
-    // _ivAtStdLoc 플래그(0x38≠0)로 형식 판별.
-    // 표준 Block D 오프셋 - 0x20 = hg-engine Block C 오프셋.
-    // 표준 Block B 오프셋(폼 등) + 0x40 = hg-engine Block D 오프셋.
-
-    private int MoveBase            => _ivAtStdLoc ? 0x28 : 0x68;
-    private int PPBase              => _ivAtStdLoc ? 0x30 : 0x70;
-    private int PPUpBase            => _ivAtStdLoc ? 0x34 : 0x74;
-
-    // 폼: 표준 Block B 0x40 / hg-engine Block D 0x80 (= 0x68 + (0x40-0x28))
-    private int FormOffset          => _ivAtStdLoc ? 0x40 : 0x80;
-
-    // 출신 게임: 표준 Block C 0x5F / hg-engine Block B 0x3F (= 0x28 + (0x5F-0x48))
-    private int OriginGameOffset    => _ivAtStdLoc ? 0x5F : 0x3F;
-
-    // 표준 Block D 필드 → hg-engine Block C (오프셋 - 0x20)
-    private int EggDateOffset       => _ivAtStdLoc ? 0x78 : 0x58;
-    private int MetDateOffset       => _ivAtStdLoc ? 0x7B : 0x5B;
-    // Met Location: HGSS는 Block B의 Pt/HGSS 필드 사용 (DP 필드 0x80/0x60이 아님)
-    // hg-engine은 EggLocation을 u32로 확장 → MetLocation이 +2 밀림 (0x44→0x46)
-    // 표준 Block B 0x46 / hg-engine Block D 0x86
-    private int MetLocationOffset   => _ivAtStdLoc ? 0x46 : 0x86;
-    private int BallOffset          => _ivAtStdLoc ? 0x83 : 0x63;
-    private int MetLevelGenderOffset => _ivAtStdLoc ? 0x84 : 0x64;
-
     // ==================== Block B (0x28-0x47) ====================
+    // 기술·PP·PPUp·IV·폼·만난 장소(Pt/HGSS)
 
-    /// <summary>폼 번호 (Gen4 표준: Block B 0x40의 bit 3-7 / hg-engine: Block D 0x80의 bit 3-7)</summary>
+    /// <summary>폼 번호 (Block B 0x40의 bit 3-7)</summary>
     public byte Form
     {
-        get => (byte)(_data[FormOffset] >> 3);
-        set => _data[FormOffset] = (byte)((_data[FormOffset] & 0x07) | ((value & 0x1F) << 3));
+        get => (byte)(_data[0x40] >> 3);
+        set => _data[0x40] = (byte)((_data[0x40] & 0x07) | ((value & 0x1F) << 3));
     }
 
-    public ushort Move1 { get => ReadUInt16(MoveBase + 0x00); set => WriteUInt16(MoveBase + 0x00, value); }
-    public ushort Move2 { get => ReadUInt16(MoveBase + 0x02); set => WriteUInt16(MoveBase + 0x02, value); }
-    public ushort Move3 { get => ReadUInt16(MoveBase + 0x04); set => WriteUInt16(MoveBase + 0x04, value); }
-    public ushort Move4 { get => ReadUInt16(MoveBase + 0x06); set => WriteUInt16(MoveBase + 0x06, value); }
+    public ushort Move1 { get => ReadUInt16(0x28); set => WriteUInt16(0x28, value); }
+    public ushort Move2 { get => ReadUInt16(0x2A); set => WriteUInt16(0x2A, value); }
+    public ushort Move3 { get => ReadUInt16(0x2C); set => WriteUInt16(0x2C, value); }
+    public ushort Move4 { get => ReadUInt16(0x2E); set => WriteUInt16(0x2E, value); }
 
-    public byte PP1 { get => _data[PPBase + 0]; set => _data[PPBase + 0] = value; }
-    public byte PP2 { get => _data[PPBase + 1]; set => _data[PPBase + 1] = value; }
-    public byte PP3 { get => _data[PPBase + 2]; set => _data[PPBase + 2] = value; }
-    public byte PP4 { get => _data[PPBase + 3]; set => _data[PPBase + 3] = value; }
+    public byte PP1 { get => _data[0x30]; set => _data[0x30] = value; }
+    public byte PP2 { get => _data[0x31]; set => _data[0x31] = value; }
+    public byte PP3 { get => _data[0x32]; set => _data[0x32] = value; }
+    public byte PP4 { get => _data[0x33]; set => _data[0x33] = value; }
 
-    public byte PPUp1 { get => _data[PPUpBase + 0]; set => _data[PPUpBase + 0] = value; }
-    public byte PPUp2 { get => _data[PPUpBase + 1]; set => _data[PPUpBase + 1] = value; }
-    public byte PPUp3 { get => _data[PPUpBase + 2]; set => _data[PPUpBase + 2] = value; }
-    public byte PPUp4 { get => _data[PPUpBase + 3]; set => _data[PPUpBase + 3] = value; }
+    public byte PPUp1 { get => _data[0x34]; set => _data[0x34] = value; }
+    public byte PPUp2 { get => _data[0x35]; set => _data[0x35] = value; }
+    public byte PPUp3 { get => _data[0x36]; set => _data[0x36] = value; }
+    public byte PPUp4 { get => _data[0x37]; set => _data[0x37] = value; }
 
-    // IVs: bit-packed uint32
-    // 표준 Gen4: Block B+0x10 = 0x38 / hg-engine: Block D+0x10 = 0x78
-    // _ivAtStdLoc 플래그로 생성 시 어느 위치인지 결정.
+    // IVs: bit-packed uint32 @ 0x38
     // bits 0-4:HP, 5-9:Atk, 10-14:Def, 15-19:Spe, 20-24:SpA, 25-29:SpD, 30:isEgg, 31:isNicknamed
     private uint IVData
     {
-        get => _ivAtStdLoc ? ReadUInt32(0x38) : ReadUInt32(0x78);
-        set
-        {
-            if (_ivAtStdLoc) WriteUInt32(0x38, value);
-            else             WriteUInt32(0x78, value);
-        }
+        get => ReadUInt32(0x38);
+        set => WriteUInt32(0x38, value);
     }
 
     public int IV_HP  { get => (int)((IVData >>  0) & 0x1F); set => IVData = (IVData & ~(0x1Fu <<  0)) | ((uint)(value & 0x1F) <<  0); }
@@ -260,69 +203,90 @@ public class PK4
         set => IVData = value ? (IVData | (1u << 31)) : (IVData & ~(1u << 31));
     }
 
-    // ==================== Block C (0x48-0x67) ====================
-    // 표준 Gen4: 닉네임(0x48), 출신게임(0x5F)
-    // hg-engine : OT이름(0x48), 날짜/볼/만난레벨 등 std Block D 콘텐츠
+    /// <summary>
+    /// 스탯 성격 오버라이드 raw 바이트 (hg-engine 민트 기능, Block B 0x42).
+    /// 0 = 오버라이드 없음. 짝수 값 = (nature_index + 1) * 2.
+    /// 표준 Gen4에서는 "Unused" 필드.
+    /// </summary>
+    public byte StatNature
+    {
+        get => _data[0x42];
+        set => _data[0x42] = value;
+    }
 
-    private int NicknameOffset => _ivAtStdLoc ? 0x48 : 0x28;
-    private int OTNameOffset   => _ivAtStdLoc ? 0x68 : 0x48;
+    /// <summary>스탯 보정에 사용되는 실효 성격 인덱스 (0~24). 민트 적용 시 디코딩, 아니면 PID 성격.</summary>
+    public int EffectiveNature
+    {
+        get
+        {
+            byte raw = StatNature;
+            if (raw >= 2 && raw % 2 == 0)
+            {
+                int idx = raw / 2 - 1;
+                if (idx <= 24) return idx;
+            }
+            return Nature;
+        }
+    }
+
+    /// <summary>만난 장소 ID (Pt/HGSS 필드, Block B 0x46)</summary>
+    public ushort MetLocation
+    {
+        get => ReadUInt16(0x46);
+        set => WriteUInt16(0x46, value);
+    }
+
+    // ==================== Block C (0x48-0x67) ====================
+    // 닉네임, 출신 게임
 
     public string Nickname
     {
-        get => StringConverter4.DecodeString(_data, NicknameOffset, 11);
-        set => StringConverter4.EncodeString(value, _data, NicknameOffset, _ivAtStdLoc ? 11 : 8);
+        get => StringConverter4.DecodeString(_data, 0x48, 11);
+        set => StringConverter4.EncodeString(value, _data, 0x48, 11);
     }
 
-    /// <summary>출신 게임 ID (표준 Gen4: 0x5F / hg-engine: 0x3F)</summary>
+    /// <summary>출신 게임 ID (Block C 0x5F)</summary>
     public byte OriginGame
     {
-        get => _data[OriginGameOffset];
-        set => _data[OriginGameOffset] = value;
+        get => _data[0x5F];
+        set => _data[0x5F] = value;
     }
 
     // ==================== Block D (0x68-0x87) ====================
-    // 표준 Gen4: OT이름(0x68), 날짜/볼/만난레벨 등
-    // hg-engine : 기술/PP/IVs — 날짜/볼/만난레벨은 Block C(0x48-0x67)에 있음
+    // OT이름, 날짜, 볼, 만난 레벨
 
     public string OTName
     {
-        get => StringConverter4.DecodeString(_data, OTNameOffset, 8);
-        set => StringConverter4.EncodeString(value, _data, OTNameOffset, 8);
+        get => StringConverter4.DecodeString(_data, 0x68, 8);
+        set => StringConverter4.EncodeString(value, _data, 0x68, 8);
     }
 
-    /// <summary>부화 날짜 (표준 Gen4: 0x78 / hg-engine: 0x58)</summary>
+    /// <summary>부화 날짜 (Block D 0x78)</summary>
     public (byte Year, byte Month, byte Day) EggDate
     {
-        get { int o = EggDateOffset; return (_data[o], _data[o+1], _data[o+2]); }
-        set { int o = EggDateOffset; _data[o] = value.Year; _data[o+1] = value.Month; _data[o+2] = value.Day; }
+        get => (_data[0x78], _data[0x79], _data[0x7A]);
+        set { _data[0x78] = value.Year; _data[0x79] = value.Month; _data[0x7A] = value.Day; }
     }
 
-    /// <summary>만난 날짜 (표준 Gen4: 0x7B / hg-engine: 0x5B)</summary>
+    /// <summary>만난 날짜 (Block D 0x7B)</summary>
     public (byte Year, byte Month, byte Day) MetDate
     {
-        get { int o = MetDateOffset; return (_data[o], _data[o+1], _data[o+2]); }
-        set { int o = MetDateOffset; _data[o] = value.Year; _data[o+1] = value.Month; _data[o+2] = value.Day; }
+        get => (_data[0x7B], _data[0x7C], _data[0x7D]);
+        set { _data[0x7B] = value.Year; _data[0x7C] = value.Month; _data[0x7D] = value.Day; }
     }
 
-    /// <summary>만난 장소 ID (표준 Block B: 0x46 / hg-engine Block D: 0x86)</summary>
-    public ushort MetLocation
-    {
-        get => ReadUInt16(MetLocationOffset);
-        set => WriteUInt16(MetLocationOffset, value);
-    }
-
-    /// <summary>잡은 볼 ID (표준 Gen4: 0x83 / hg-engine: 0x63)</summary>
+    /// <summary>잡은 볼 ID. HGSS는 0x86 필드를 사용하며, DP 호환용 0x83에도 동기화.</summary>
     public byte Ball
     {
-        get => _data[BallOffset];
-        set => _data[BallOffset] = value;
+        get => _data[0x86];
+        set { _data[0x86] = value; _data[0x83] = value; }
     }
 
-    /// <summary>만난 레벨 (하위 7비트) + OT 성별 (최상위 비트) (표준 Gen4: 0x84 / hg-engine: 0x64)</summary>
+    /// <summary>만난 레벨 (하위 7비트) + OT 성별 (최상위 비트) (Block D 0x84)</summary>
     private byte MetLevelGender
     {
-        get => _data[MetLevelGenderOffset];
-        set => _data[MetLevelGenderOffset] = value;
+        get => _data[0x84];
+        set => _data[0x84] = value;
     }
 
     public int MetLevel
@@ -339,22 +303,11 @@ public class PK4
 
     // ==================== 파생 속성 ====================
 
-    /// <summary>
-    /// PID (개성값). 값이 변경되면 _shuffleOrder를 -1로 리셋하여
-    /// EncryptPK4가 새 PID%24 기반 셔플을 사용하도록 한다.
-    /// save.c에 포켓몬 암호화 코드가 없으므로 게임은 원본 ROM의
-    /// PID%24 셔플을 그대로 사용한다고 판단.
-    /// </summary>
+    /// <summary>PID (개성값)</summary>
     public uint PID
     {
         get => ReadUInt32(0x00);
-        set
-        {
-            uint old = ReadUInt32(0x00);
-            WriteUInt32(0x00, value);
-            if (old != value)
-                _shuffleOrder = -1;
-        }
+        set => WriteUInt32(0x00, value);
     }
 
     /// <summary>성별 (PID 기반): 0=수컷, 1=암컷, 2=무성</summary>
@@ -377,8 +330,6 @@ public class PK4
 
     /// <summary>
     /// 현재 레벨을 경험치 표로부터 계산.
-    /// 정확한 계산을 위해 성장속도 정보가 필요하며,
-    /// 여기서는 단순화된 추정값을 반환.
     /// </summary>
     public int Level
     {
@@ -417,7 +368,7 @@ public class PK4
     public byte[] WriteToRaw()
     {
         byte[] copy = (byte[])_data.Clone();
-        return PokeCrypto.EncryptPK4(copy, _shuffleOrder);
+        return PokeCrypto.EncryptPK4(copy);
     }
 
     /// <summary>
@@ -468,29 +419,6 @@ public class PK4
 
     // ==================== 내부 헬퍼 ====================
 
-    /// <summary>
-    /// 블록 레이아웃 판별: 표준 Gen4 vs hg-engine.
-    /// 1차: Ball 필드 위치(표준 0x83 / hg-engine 0x63)로 판별 — 가장 신뢰도 높음.
-    /// 2차: IVData(표준 0x38 / hg-engine 0x78)로 판별.
-    /// 0x78은 표준에서 EggDate/MetDate 영역이라 비어있지 않을 수 있으므로
-    /// IVData 단독으로는 신뢰 불가.
-    /// </summary>
-    private static bool DetectIvLocation(byte[] data)
-    {
-        // 1차: Ball 필드 (1-26 범위, 오탐 확률 매우 낮음)
-        byte ballStd = data[0x83]; // 표준 Block D
-        byte ballHge = data[0x63]; // hg-engine Block C
-        bool ballStdOk = ballStd >= 1 && ballStd <= 26;
-        bool ballHgeOk = ballHge >= 1 && ballHge <= 26;
-        if (ballStdOk && !ballHgeOk) return true;
-        if (ballHgeOk && !ballStdOk) return false;
-
-        // 2차: IVData (0x38만 사용 — 0x78은 표준에서 MetDate가 있어 신뢰 불가)
-        if (BitConverter.ToUInt32(data, 0x38) != 0) return true;
-
-        return true; // 폴백: 표준 Gen4
-    }
-
     private ushort ReadUInt16(int offset) => BitConverter.ToUInt16(_data, offset);
     private uint   ReadUInt32(int offset) => BitConverter.ToUInt32(_data, offset);
     private void WriteUInt16(int offset, ushort val) => BitConverter.GetBytes(val).CopyTo(_data, offset);
@@ -521,9 +449,10 @@ public class PK4
     }
 
     // 성격 보정값 계산 (Gen4 기준: 0=Atk, 1=Def, 2=Spe, 3=SpA, 4=SpD)
+    // 민트가 적용된 경우 EffectiveNature를 사용
     private double NatureModifier(int statIndex)
     {
-        int nat = Nature;
+        int nat = EffectiveNature;
         int boosts = nat / 5;
         int reduces = nat % 5;
         if (boosts == reduces) return 1.0; // 무보정 성격

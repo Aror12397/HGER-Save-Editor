@@ -36,6 +36,8 @@ public sealed class PokemonEditorForm : Form
     private TextBox  _numExp         = null!;
     private ComboBox _cmbNature      = null!;
     private Label    _lblNatureMod   = null!;
+    private ComboBox _cmbMintNature  = null!;
+    private Label    _lblMintMod     = null!;
     private Label    _lblGender      = null!;
     private Label    _lblShiny       = null!;
     private ComboBox       _cmbAbility      = null!;
@@ -76,9 +78,6 @@ public sealed class PokemonEditorForm : Form
         if (_isNewSlot)
         {
             // 새 포켓몬: 암복호화 왕복 없이 빈 데이터로 생성.
-            // _shuffleOrder = -1 유지 → WriteToRaw()에서 PID%24 사용.
-            // 왕복하면 _shuffleOrder가 0으로 고정되어, PID 변경 후
-            // 게임이 PID%24로 복호화할 때 블록 순서 불일치 발생.
             int size = pk.IsPartyForm ? PokeCrypto.SIZE_4PARTY : PokeCrypto.SIZE_4STORED;
             _pk = PK4.CreateBlank(size);
         }
@@ -255,12 +254,26 @@ public sealed class PokemonEditorForm : Form
         _numExp.TextChanged   += OnExpChanged;
         AddRow(table, "레벨 / EXP", MakeFlow(_numLevel, MakeInfoLabel("EXP", Color.DarkGray, 30), _numExp));
 
-        // 성격 + 보정 표시
+        // 성격 (PID 기반, 읽기 전용)
         _cmbNature    = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 110, Enabled = false };
         _cmbNature.Items.AddRange(GameData.NatureNames);
         _lblNatureMod = MakeInfoLabel("", Color.Plum, 150);
-        _cmbNature.SelectedIndexChanged += (_, _) => { UpdateNatureModifierLabel(); UpdateStatColors(); };
+        _cmbNature.SelectedIndexChanged += (_, _) => { UpdateNatureModifierLabel(); UpdateStatColors(); RecalcStatValues(); };
         AddRow(table, "성격", MakeFlow(_cmbNature, _lblNatureMod));
+
+        // 민트 성격 (스탯 보정 오버라이드)
+        _cmbMintNature = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 110 };
+        _cmbMintNature.Items.Add("없음 (PID 성격)");
+        _cmbMintNature.Items.AddRange(GameData.NatureNames);
+        _lblMintMod    = MakeInfoLabel("", Color.FromArgb(130, 220, 130), 150);
+        _cmbMintNature.SelectedIndexChanged += (_, _) =>
+        {
+            if (_loading) return;
+            UpdateNatureModifierLabel();
+            UpdateStatColors();
+            RecalcStatValues();
+        };
+        AddRow(table, "민트", MakeFlow(_cmbMintNature, _lblMintMod));
 
         // 성별 표시 (PID에서 자동 결정, 읽기 전용)
         _lblGender = new Label
@@ -556,6 +569,9 @@ public sealed class PokemonEditorForm : Form
         _numLevel.Text        = Math.Clamp(_pk.Level, 1, 100).ToString();
         _numExp.Text          = _pk.Exp.ToString();
         _cmbNature.SelectedIndex = Math.Clamp(_pk.Nature, 0, 24);
+        // 민트: stored = (nature_index + 1) * 2, 0=없음. ComboBox index = stored / 2.
+        int mintIdx = (_pk.StatNature >= 2 && _pk.StatNature % 2 == 0) ? _pk.StatNature / 2 : 0;
+        _cmbMintNature.SelectedIndex = Math.Clamp(mintIdx, 0, 25);
         _abilitySearch.SetSelected(_pk.Ability);
         _heldItemSearch.SetSelected(Math.Clamp((int)_pk.HeldItem, 0, 799));
         _numFriendship.Text   = _pk.Friendship.ToString();
@@ -627,11 +643,12 @@ public sealed class PokemonEditorForm : Form
 
         _pk.Ball = (byte)Math.Clamp(_cmbBall.SelectedIndex, 0, 255);
 
-        // PID 변경 시 PK4.PID setter가 _shuffleOrder를 -1로 리셋하여
-        // EncryptPK4가 새 PID%24 기반 셔플을 사용한다.
         // 성격(PID%25)·성별(PID&0xFF)은 PID에서 자동 결정되므로 별도 조정 없음.
         uint pid = uint.TryParse(_txtPID.Text, System.Globalization.NumberStyles.HexNumber, null, out uint pidParsed) ? pidParsed : 0;
         _pk.PID = pid;
+
+        // 민트 성격: ComboBox index → stored = index * 2 (0=없음, 2=Hardy, 4=Lonely, ...)
+        _pk.StatNature = (byte)(_cmbMintNature.SelectedIndex * 2);
 
         // 기술 탭
         _pk.Move1 = (ushort)_moveRows[0].MoveID; _pk.PP1 = (byte)_moveRows[0].PP; _pk.PPUp1 = (byte)_moveRows[0].PPUp;
@@ -749,7 +766,7 @@ public sealed class PokemonEditorForm : Form
     {
         var bs  = GameData.GetBaseStats(_speciesSearch.SelectedId, SelectedForm);
         int lv  = GetInt(_numLevel);
-        int nat = _cmbNature.SelectedIndex;
+        int nat = GetEffectiveNature();
         if (bs == null || lv <= 0)
         {
             for (int i = 0; i < 6; i++) { _statRows[i].SetBase(0); _statRows[i].SetCalc(-1); }
@@ -774,19 +791,33 @@ public sealed class PokemonEditorForm : Form
 
     // ==================== UI 갱신 ====================
 
+    /// <summary>민트가 적용된 경우 민트 성격 인덱스(0~24), 아니면 PID 성격 인덱스를 반환.</summary>
+    private int GetEffectiveNature()
+    {
+        int mintCombo = _cmbMintNature.SelectedIndex; // 0=없음, 1~25=성격
+        return mintCombo > 0 ? mintCombo - 1 : _cmbNature.SelectedIndex;
+    }
+
     private void UpdateNatureModifierLabel()
     {
+        // PID 성격 레이블
         int nat = _cmbNature.SelectedIndex;
         if (nat < 0) { _lblNatureMod.Text = ""; return; }
         int b = nat / 5, r = nat % 5;
         _lblNatureMod.Text = b == r ? "(무보정)" : $"({StatLabels[b]}↑  {StatLabels[r]}↓)";
+
+        // 민트 성격 레이블
+        int mint = _cmbMintNature.SelectedIndex;
+        if (mint <= 0) { _lblMintMod.Text = ""; return; }
+        int mb = mint / 5, mr = mint % 5;
+        _lblMintMod.Text = mb == mr ? "(무보정)" : $"({StatLabels[mb]}↑  {StatLabels[mr]}↓)";
     }
 
     private void UpdateStatColors()
     {
         // stat row 순서: HP(0), 공격(1), 방어(2), 특공(3), 특방(4), 스피드(5)
         // nature stat 순서 (Gen4 기준): Atk=0, Def=1, Spe=2, SpA=3, SpD=4
-        int nat       = _cmbNature.SelectedIndex;
+        int nat       = GetEffectiveNature();
         int[] natMap  = [-1, 0, 1, 3, 4, 2];
         for (int i = 0; i < 6; i++)
         {
