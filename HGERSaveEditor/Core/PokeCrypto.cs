@@ -169,8 +169,10 @@ public static class PokeCrypto
     /// <summary>
     /// 주어진 sv로 역셔플한 결과가 유효한 ABCD 블록 배치인지 검증.
     /// 반환: null=실패, true=표준 레이아웃, false=hg-engine 레이아웃.
-    /// Block A 검증: Species>0, Language∈{1-5,7,8}, Friendship>3.
+    /// Block A 검증: Species>0, Language∈{1-5,7,8}.
     /// 레이아웃 결정: Ball이 0x83(표준)에 있으면 true, 0x63(hg-engine)에 있으면 false.
+    /// Friendship>3 체크는 볼 위치가 양쪽 모두 유효한 경우에만 적용.
+    /// 닉네임 종료자(0xFFFF) 필수 — 잘못된 블록 배치 오탐 방지.
     /// </summary>
     private static bool? VerifyUnshuffle(byte[] xorDecrypted, int sv)
     {
@@ -185,9 +187,6 @@ public static class PokeCrypto
         byte lang = temp[0x17];
         if (lang < 1 || lang > 8 || lang == 6) return null;
 
-        // Block A: Friendship > 3 (PPUp1은 항상 0-3이므로 Block D 배제)
-        if (temp[0x14] <= 3) return null;
-
         // Ball 위치로 레이아웃 결정
         byte b83 = temp[0x83], b63 = temp[0x63];
         bool ballStdOk = b83 >= 1 && b83 <= 26;
@@ -198,6 +197,11 @@ public static class PokeCrypto
         else if (ballHgeOk && !ballStdOk) layout = false;
         else if (ballStdOk && ballHgeOk)
         {
+            // 볼 위치 양쪽 모두 유효 → Friendship으로 추가 판별.
+            // Block A: Friendship > 3 (PPUp1은 항상 0-3이므로 Block D 배제).
+            // 볼이 한쪽만 유효한 경우(대부분)에는 이 체크를 생략:
+            // 친밀도 0인 에디터 생성 포켓몬도 올바르게 감지되도록.
+            if (temp[0x14] <= 3) return null;
             if (BitConverter.ToUInt32(temp, 0x38) != 0) layout = true;
             else layout = false;
         }
@@ -213,6 +217,21 @@ public static class PokeCrypto
         byte pp1 = temp[isStd ? 0x30 : 0x70];
         uint ivData = BitConverter.ToUInt32(temp, isStd ? 0x38 : 0x78);
         if (pp1 == 0 && ivData == 0) return null;
+
+        // 닉네임 종료자(0xFFFF) 검증 — 잘못된 블록 배치에서의 오탐 방지
+        // Gen4 문자열은 반드시 0xFFFF 종료자를 포함해야 한다.
+        int nickOfs = isStd ? 0x48 : 0x28;
+        int nickLen = isStd ? 22 : 16; // 표준 11chars, hg-engine 8chars (각 2바이트)
+        bool hasTerminator = false;
+        for (int i = nickOfs; i < nickOfs + nickLen; i += 2)
+        {
+            if (BitConverter.ToUInt16(temp, i) == 0xFFFF)
+            {
+                hasTerminator = true;
+                break;
+            }
+        }
+        if (!hasTerminator) return null;
 
         return layout;
     }
