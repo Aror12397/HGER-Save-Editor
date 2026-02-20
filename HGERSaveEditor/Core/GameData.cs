@@ -19,11 +19,13 @@ public static class GameData
     private static string[] _moveNames     = [];
     private static string[] _itemNames     = [];
     private static string[] _abilityNames  = [];
+    private static string[] _ballNames     = [];
     private static readonly Dictionary<int, string> _locationNames = [];
 
     public static string[] MoveNames    => _moveNames;
     public static string[] SpeciesNames => _speciesNames;
     public static string[] AbilityNames => _abilityNames;
+    public static string[] BallNames   => _ballNames;
     public static IReadOnlyDictionary<int, string> LocationEntries => _locationNames;
 
     // ==================== 폼 이름 ====================
@@ -68,6 +70,19 @@ public static class GameData
         _spriteCache.Clear();
     }
 
+    /// <summary>알 스프라이트를 반환합니다.</summary>
+    public static Image? GetEggSprite()
+    {
+        if (string.IsNullOrEmpty(_spriteDir)) return null;
+        if (_spriteCache.TryGetValue((-1, 0), out var cached)) return cached;
+        Image? img = null;
+        string path = Path.Combine(_spriteDir, "egg.png");
+        if (File.Exists(path))
+            try { img = Image.FromFile(path); } catch { }
+        _spriteCache[(-1, 0)] = img;
+        return img;
+    }
+
     /// <summary>종족·폼에 해당하는 스프라이트 이미지를 반환합니다. 폼 스프라이트가 없으면 form 0 폴백, 그것도 없으면 null.</summary>
     public static Image? GetSprite(int species, int form = 0)
     {
@@ -102,7 +117,9 @@ public static class GameData
         _moveNames     = LoadLines(Path.Combine(dataDir, "moves.txt"),    "기술");
         _itemNames     = LoadLines(Path.Combine(dataDir, "items.txt"),    "아이템");
         _abilityNames  = LoadLines(Path.Combine(dataDir, "abilities.txt"),"특성");
+        _ballNames     = LoadLines(Path.Combine(dataDir, "balls.txt"),   "볼");
         LoadLocations(Path.Combine(dataDir, "locations.txt"));
+        LoadGenderless(Path.Combine(dataDir, "genderless.txt"));
     }
 
     private static void LoadLocations(string path)
@@ -161,6 +178,14 @@ public static class GameData
         if (id < _abilityNames.Length && !string.IsNullOrEmpty(_abilityNames[id]))
             return _abilityNames[id];
         return $"특성 #{id}";
+    }
+
+    public static string GetBallName(int id)
+    {
+        if (id <= 0) return "없음";
+        if (id < _ballNames.Length && !string.IsNullOrEmpty(_ballNames[id]))
+            return _ballNames[id];
+        return $"볼 #{id}";
     }
 
     public static string GetLocationName(int id)
@@ -315,14 +340,24 @@ public static class GameData
     // ==================== 성별 비율 ====================
 
     // 성별비율 테이블 (species별). 0=항상수컷, 254=항상암컷, 255=무성, 나머지=임계값
-    private static readonly byte[] GenderRatioTable = BuildGenderTable();
+    private static byte[] GenderRatioTable = BuildGenderTable();
 
     private static byte[] BuildGenderTable()
     {
-        // 기본값 127 (1:1). 실제 데이터는 별도 파일에서 로드.
+        // 기본값 127 (1:1). LoadGenderless()에서 무성 포켓몬 반영.
         byte[] t = new byte[2000];
         Array.Fill(t, (byte)127);
         return t;
+    }
+
+    public static void LoadGenderless(string path)
+    {
+        if (!File.Exists(path)) return;
+        foreach (string line in File.ReadAllLines(path))
+        {
+            if (int.TryParse(line.Trim(), out int id) && id > 0 && id < GenderRatioTable.Length)
+                GenderRatioTable[id] = 255;
+        }
     }
 
     public static int GetGenderRatio(int species)

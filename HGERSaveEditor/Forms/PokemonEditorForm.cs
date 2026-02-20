@@ -315,7 +315,7 @@ public sealed class PokemonEditorForm : Form
 
         // 볼
         _cmbBall = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 140 };
-        for (int i = 0; i < 256; i++) _cmbBall.Items.Add(GameData.GetItemName(i));
+        for (int i = 0; i < GameData.BallNames.Length; i++) _cmbBall.Items.Add(GameData.GetBallName(i));
         AddRow(table, "볼", _cmbBall);
 
         // 남은 공간 흡수용 filler 행

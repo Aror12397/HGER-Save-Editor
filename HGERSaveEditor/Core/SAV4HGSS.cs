@@ -56,12 +56,16 @@ public class SAV4HGSS
     private const int OFS_Party       = 0x98;
 
     // Storage block 내 오프셋
+    // hg-engine: 박스당 0x1000 바이트 정렬 (표준 30×136=4080이 아님)
     private const int OFS_BoxData      = 0x0000;
-    private const int OFS_BoxNames     = 0x11EE0;
-    private const int OFS_BoxWallpaper = 0x11FE8;
-    private const int OFS_CurrentBox   = 0x11FF8;
+    private const int BoxAllocSize     = 0x1000; // 박스당 할당 크기 (4096)
+    private const int OFS_BoxNames     = 0x1E000;
+    private const int BoxNameEntrySize = 40;     // 박스 이름 항목 크기 (12바이트 헤더 + 이름)
+    private const int BoxNameHeaderSize = 12;    // 이름 항목 내 헤더 크기
+    private const int OFS_BoxWallpaper = 0x1E4B8;
+    private const int OFS_CurrentBox   = 0x1E4B0;
 
-    public const int BoxCount    = 18;
+    public const int BoxCount    = 30;
     public const int BoxSlotCount = 30;
 
     // ==================== 필드 ====================
@@ -278,7 +282,7 @@ public class SAV4HGSS
     public PK4 GetBoxSlot(int box, int slot)
     {
         int offset = _storageBase + OFS_BoxData
-                   + box * BoxSlotCount * PokeCrypto.SIZE_4STORED
+                   + box * BoxAllocSize
                    + slot * PokeCrypto.SIZE_4STORED;
         byte[] raw = new byte[PokeCrypto.SIZE_4STORED];
         Array.Copy(_raw, offset, raw, 0, PokeCrypto.SIZE_4STORED);
@@ -289,7 +293,7 @@ public class SAV4HGSS
     {
         byte[] stored = PokeCrypto.ConvertToStored(pk.WriteToRaw());
         int offset = _storageBase + OFS_BoxData
-                   + box * BoxSlotCount * PokeCrypto.SIZE_4STORED
+                   + box * BoxAllocSize
                    + slot * PokeCrypto.SIZE_4STORED;
         Array.Copy(stored, 0, _raw, offset, PokeCrypto.SIZE_4STORED);
         IsModified = true;
@@ -297,16 +301,16 @@ public class SAV4HGSS
 
     public string GetBoxName(int box)
     {
-        int offset = _storageBase + OFS_BoxNames + box * 40;
-        if (offset + 40 > _raw.Length) return $"BOX {box + 1}";
-        return StringConverter4.DecodeString(_raw, offset, 18);
+        int offset = _storageBase + OFS_BoxNames + box * BoxNameEntrySize + BoxNameHeaderSize;
+        if (offset + (BoxNameEntrySize - BoxNameHeaderSize) > _raw.Length) return $"BOX {box + 1}";
+        return StringConverter4.DecodeString(_raw, offset, 14);
     }
 
     public void SetBoxName(int box, string name)
     {
-        int offset = _storageBase + OFS_BoxNames + box * 40;
-        if (offset + 40 > _raw.Length) return;
-        StringConverter4.EncodeString(name, _raw, offset, 18);
+        int offset = _storageBase + OFS_BoxNames + box * BoxNameEntrySize + BoxNameHeaderSize;
+        if (offset + (BoxNameEntrySize - BoxNameHeaderSize) > _raw.Length) return;
+        StringConverter4.EncodeString(name, _raw, offset, 14);
         IsModified = true;
     }
 

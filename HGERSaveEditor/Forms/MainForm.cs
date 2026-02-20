@@ -50,8 +50,8 @@ public sealed class MainForm : Form
     private void InitializeComponent()
     {
         SuspendLayout();
-        Text            = "HGER Save Editor v0.3.0";
-        Size            = new Size(930, 620);
+        Text            = "HGER Save Editor v0.4.0";
+        Size            = new Size(1010, 620);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox     = false;
         StartPosition   = FormStartPosition.CenterScreen;
@@ -331,7 +331,7 @@ public sealed class MainForm : Form
         for (int i = 0; i < count; i++)
         {
             PK4 pk = _save.GetPartySlot(i);
-            if (!pk.IsEmpty && pk.HasWarnings)
+            if (!pk.IsEmpty && !pk.IsEgg && pk.HasWarnings)
                 locations.Add($"파티 {i + 1}번 - {GameData.GetSpeciesName(pk.Species)}");
         }
 
@@ -340,10 +340,10 @@ public sealed class MainForm : Form
             for (int slot = 0; slot < SAV4HGSS.BoxSlotCount; slot++)
             {
                 PK4 pk = _save.GetBoxSlot(box, slot);
-                if (!pk.IsEmpty && pk.HasWarnings)
+                if (!pk.IsEmpty && !pk.IsEgg && pk.HasWarnings)
                 {
-                    string boxName = _save.GetBoxName(box);
-                    if (string.IsNullOrWhiteSpace(boxName)) boxName = $"박스 {box + 1}";
+                    string boxName = _save.GetBoxName(box).Trim();
+                    if (string.IsNullOrEmpty(boxName) || int.TryParse(boxName, out _)) boxName = $"박스 {box + 1}";
                     locations.Add($"{boxName} {slot + 1}번 - {GameData.GetSpeciesName(pk.Species)}");
                 }
             }
@@ -375,6 +375,12 @@ public sealed class MainForm : Form
             : _save.GetBoxSlot(boxIndex, slotIndex);
 
         if (pk.IsEmpty) return;
+
+        if (pk.IsEgg)
+        {
+            MessageBox.Show("알은 편집할 수 없습니다.", "알", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
 
         using var editor = new PokemonEditorForm(pk, _save.TrainerName, _save.TID, _save.SID, _save.Gender);
         if (editor.ShowDialog() != DialogResult.OK) return;
@@ -540,8 +546,11 @@ public sealed class MainForm : Form
             int box = _boxSelector.SelectedIndex;
 
             // 박스 이름 업데이트
-            string boxName = _save.GetBoxName(box);
-            _boxSelector.Items[box] = string.IsNullOrWhiteSpace(boxName) ? $"박스 {box + 1}" : boxName;
+            // 기본 이름은 0x01DE(공백) + 숫자로 저장되어 있으므로,
+            // 트림 후 숫자만 남으면 기본 이름("박스 N")으로 대체
+            string boxName = _save.GetBoxName(box).Trim();
+            bool isDefault = string.IsNullOrEmpty(boxName) || int.TryParse(boxName, out _);
+            _boxSelector.Items[box] = isDefault ? $"박스 {box + 1}" : boxName;
 
             for (int i = 0; i < SAV4HGSS.BoxSlotCount; i++)
             {
@@ -567,6 +576,7 @@ internal sealed class SlotButton : Button
     private static readonly Color EmptyColor  = Color.FromArgb(55, 55, 58);
     private static readonly Color FilledColor = Color.FromArgb(40, 70, 110);
     private static readonly Color ShinyColor  = Color.FromArgb(100, 85, 20);
+    private static readonly Color EggColor    = Color.FromArgb(50, 90, 60);
 
     private static readonly int SpriteSize = 48;
 
@@ -576,7 +586,7 @@ internal sealed class SlotButton : Button
 
     public SlotButton()
     {
-        Size      = new Size(140, 80);
+        Size      = new Size(152, 80);
         Margin    = new Padding(4);
         FlatStyle = FlatStyle.Flat;
         FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
@@ -591,8 +601,8 @@ internal sealed class SlotButton : Button
     public void SetPokemon(PK4 pk)
     {
         _pk     = pk;
-        _sprite = pk.IsEmpty ? null : GameData.GetSprite(pk.Species, pk.Form);
-        _hasWarnings = !pk.IsEmpty && pk.HasWarnings;
+        _sprite = pk.IsEmpty ? null : pk.IsEgg ? GameData.GetEggSprite() : GameData.GetSprite(pk.Species, pk.Form);
+        _hasWarnings = !pk.IsEmpty && !pk.IsEgg && pk.HasWarnings;
 
         if (pk.IsEmpty)
         {
@@ -600,19 +610,32 @@ internal sealed class SlotButton : Button
             return;
         }
 
+        if (pk.IsEgg)
+        {
+            string eggName = GameData.GetSpeciesName(pk.Species);
+            ForeColor = Color.White;
+            BackColor = EggColor;
+            Text = _sprite != null
+                ? $"알\n({eggName})"
+                : $"알\n({eggName}) | #{pk.Species}";
+            Padding = _sprite != null ? new Padding(SpriteSize + 6, 0, 0, 0) : Padding.Empty;
+            ToolTipText = "알은 편집할 수 없습니다.";
+            Invalidate();
+            return;
+        }
+
         string name   = GameData.GetSpeciesName(pk.Species);
         int    level  = pk.Level;
         string gender = pk.Gender switch { 0 => " ♂", 1 => " ♀", _ => "" };
         string shiny  = pk.IsShiny ? " ★" : "";
-        string nature = GameData.NatureNames[pk.Nature];
 
         ForeColor = Color.White;
         BackColor = pk.IsShiny ? ShinyColor : FilledColor;
 
         // 스프라이트 없으면 종류 번호 포함, 있으면 생략
         Text = _sprite != null
-            ? $"{name}{shiny}\nLv.{level}{gender}  {nature}"
-            : $"{name}{shiny}\nLv.{level}{gender}  {nature} | #{pk.Species}";
+            ? $"{name}{shiny}\nLv.{level}{gender}"
+            : $"{name}{shiny}\nLv.{level}{gender} | #{pk.Species}";
 
         // 스프라이트 영역만큼 왼쪽 Padding 확보 → base.OnPaint가 나머지 영역에 텍스트 배치
         Padding = _sprite != null ? new Padding(SpriteSize + 6, 0, 0, 0) : Padding.Empty;
