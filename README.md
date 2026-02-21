@@ -1,18 +1,20 @@
 # HGER Save Editor
 
-hg-engine 기반 포켓몬 롬 핵(HGER)의 `.sav` 파일을 편집하는 Windows 애플리케이션.
+hg-engine 기반 포켓몬 롬 핵(HGER)의 `.sav` 파일을 편집하는 에디터.
 
-## 다운로드
+## 사용 방법
 
-[최신 릴리스](https://github.com/Aror12397/HGER-Save-Editor/releases/latest)에서 zip 파일을 받아 압축 해제 후 실행하세요.
+- **웹 버전** — 브라우저에서 바로 사용: [HGER Save Editor Web](https://hger-save-editor-web.pages.dev) *(설치 불필요)*
+- **데스크톱 버전** — [최신 릴리스](https://github.com/Aror12397/HGER-Save-Editor/releases/latest)에서 zip 파일을 받아 압축 해제 후 실행 (Windows)
 
 ## 기능
 
-- **파티 / 박스 편집** — 6슬롯 파티, 18박스 × 30슬롯 박스 지원
+- **파티 / 박스 편집** — 6슬롯 파티, 30박스 × 30슬롯 박스 지원
 - **포켓몬 편집** — 종류, 폼, 닉네임, 레벨, 경험치, 특성, 민트, 지닌 아이템, 친밀도, 볼, 언어
 - **기술 편집** — 4슬롯 기술 ID, PP, PP업
 - **스탯 편집** — IV, EV, 계산 스탯 표시 (IV 최대, IV 및 EV 초기화 버튼)
 - **만남 정보** — 어버이 이름, TID/SID, 만난 레벨, 만난 장소, 만난 날짜
+- **알 표시** — 알 슬롯 구분 표시 (편집 불가)
 - **스프라이트 표시** — 폼별 스프라이트 지원
 - **드래그 앤 드롭** — `.sav` 파일을 끌어다 놓으면 바로 열기
 - **PID 기반 자동 표시** — 성격, 성별, 이로치 여부를 PID에서 자동 판별
