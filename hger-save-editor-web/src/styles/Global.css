@@ -1,0 +1,153 @@
+:root {
+  --bg: #1E1E1E;
+  --panel: #282828;
+  --panel-alt: #323232;
+  --menu-bar: #2D2D30;
+  --status-bar: #007ACC;
+  --slot-empty: #37373A;
+  --slot-filled: #284670;
+  --slot-shiny: #645514;
+  --slot-egg: #325A3C;
+  --border: #505050;
+  --text: #FFFFFF;
+  --text-muted: #C0C0C0;
+  --text-dim: #808080;
+  --accent: #007ACC;
+  --btn-default: #3C3C3C;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+input, select {
+  font-family: inherit;
+  font-size: inherit;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 3px 6px;
+  outline: none;
+}
+
+input:focus, select:focus {
+  border-color: var(--accent);
+}
+
+select {
+  cursor: pointer;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--panel);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+
+/* ==================== 모바일 반응형 ==================== */
+
+@media (max-width: 640px) {
+  body {
+    font-size: 13px;
+  }
+
+  .box-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  .slot-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 70px !important;
+    font-size: 11px !important;
+  }
+
+  .slot-btn img {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .party-slots {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0;
+  }
+
+  .party-slots .slot-btn {
+    margin: 3px !important;
+  }
+
+  .editor-modal {
+    width: 100% !important;
+    max-height: 100vh !important;
+    height: 100% !important;
+    border: none !important;
+  }
+
+  .editor-grid {
+    grid-template-columns: 80px 1fr !important;
+    gap: 6px 8px !important;
+  }
+
+  .menu-bar {
+    flex-wrap: wrap;
+    height: auto !important;
+    padding: 4px 8px !important;
+    gap: 2px !important;
+  }
+
+  .menu-bar .menu-title {
+    display: none;
+  }
+
+  .trainer-info {
+    font-size: 11px !important;
+    word-break: keep-all;
+  }
+
+  .editor-tabs button {
+    padding: 6px 4px !important;
+    font-size: 12px !important;
+  }
+
+  .search-combo {
+    width: 100% !important;
+    max-width: 200px;
+  }
+}

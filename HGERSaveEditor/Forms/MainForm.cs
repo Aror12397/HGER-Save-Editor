@@ -50,7 +50,7 @@ public sealed class MainForm : Form
     private void InitializeComponent()
     {
         SuspendLayout();
-        Text            = "HGER Save Editor v0.4.0";
+        Text            = "HGER Save Editor v0.4.1";
         Size            = new Size(1010, 620);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox     = false;
@@ -146,16 +146,17 @@ public sealed class MainForm : Form
         _trainerLabel = new Label
         {
             Text      = "트레이너: -",
+            Dock      = DockStyle.Top,
             Font      = new Font("Segoe UI", 10f, FontStyle.Bold),
             ForeColor = Color.LightGray,
-            Location  = new Point(10, 8),
+            Padding   = new Padding(8, 6, 8, 6),
             AutoSize  = true,
         };
 
         _partyPanel = new FlowLayoutPanel
         {
             Dock          = DockStyle.Fill,
-            Padding       = new Padding(10, 40, 10, 10),
+            Padding       = new Padding(10, 10, 10, 10),
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents  = false,
             AutoScroll    = true,
