@@ -809,7 +809,7 @@ public sealed class PokemonEditorForm : Form
         // 민트 성격 레이블
         int mint = _cmbMintNature.SelectedIndex;
         if (mint <= 0) { _lblMintMod.Text = ""; return; }
-        int mb = mint / 5, mr = mint % 5;
+        int mb = (mint - 1) / 5, mr = (mint - 1) % 5;
         _lblMintMod.Text = mb == mr ? "(무보정)" : $"({StatLabels[mb]}↑  {StatLabels[mr]}↓)";
     }
 
