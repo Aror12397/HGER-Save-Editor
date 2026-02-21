@@ -4,7 +4,7 @@ hg-engine 기반 포켓몬 롬 핵(HGER)의 `.sav` 파일을 편집하는 에디
 
 ## 사용 방법
 
-- **웹 버전** — 브라우저에서 바로 사용: [HGER Save Editor Web](https://hger-save-editor-web.pages.dev) *(설치 불필요)*
+- **웹 버전** — 브라우저에서 바로 사용: [HGER Save Editor Web](https://hger-save-editor.pages.dev/) *(설치 불필요)*
 - **데스크톱 버전** — [최신 릴리스](https://github.com/Aror12397/HGER-Save-Editor/releases/latest)에서 zip 파일을 받아 압축 해제 후 실행 (Windows)
 
 ## 기능
