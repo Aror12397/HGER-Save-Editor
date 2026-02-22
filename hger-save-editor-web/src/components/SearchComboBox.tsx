@@ -9,9 +9,10 @@ interface SearchComboBoxProps {
 }
 
 export function SearchComboBox({ items, selectedId, onSelect, width = 200, disabled = false }: SearchComboBoxProps) {
-  const [search, setSearch] = useState('');
+  const [inputValue, setInputValue] = useState('');  // 입력창 표시용 (조합 중 포함)
+  const [search, setSearch] = useState('');           // 필터 트리거용 (조합 완료 후만)
   const [isOpen, setIsOpen] = useState(false);
-  const [isComposing, setIsComposing] = useState(false);
+  const isComposingRef = useRef(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -52,6 +53,7 @@ export function SearchComboBox({ items, selectedId, onSelect, width = 200, disab
   const handleSelect = useCallback((id: number) => {
     onSelect(id);
     setIsOpen(false);
+    setInputValue('');
     setSearch('');
     inputRef.current?.blur();
   }, [onSelect]);
@@ -71,11 +73,12 @@ export function SearchComboBox({ items, selectedId, onSelect, width = 200, disab
       }
     } else if (e.key === 'Escape') {
       setIsOpen(false);
+      setInputValue('');
       setSearch('');
     }
   };
 
-  const displayValue = isOpen ? search : (items[selectedId] ?? '');
+  const displayValue = isOpen ? inputValue : (items[selectedId] ?? '');
 
   return (
     <div ref={containerRef} className="search-combo" style={{ width, position: 'relative' }}>
@@ -84,16 +87,22 @@ export function SearchComboBox({ items, selectedId, onSelect, width = 200, disab
         value={displayValue}
         disabled={disabled}
         onChange={(e) => {
-          if (isComposing) return;
-          setSearch(e.target.value);
+          const val = e.target.value;
+          setInputValue(val);
+          if (!isComposingRef.current) {
+            setSearch(val);
+            if (!isOpen) setIsOpen(true);
+          }
+        }}
+        onCompositionStart={() => { isComposingRef.current = true; }}
+        onCompositionEnd={(e) => {
+          isComposingRef.current = false;
+          const val = (e.target as HTMLInputElement).value;
+          setInputValue(val);
+          setSearch(val);
           if (!isOpen) setIsOpen(true);
         }}
-        onCompositionStart={() => setIsComposing(true)}
-        onCompositionEnd={(e) => {
-          setIsComposing(false);
-          setSearch((e.target as HTMLInputElement).value);
-        }}
-        onFocus={() => { setSearch(''); setIsOpen(true); }}
+        onFocus={() => { setInputValue(''); setSearch(''); setIsOpen(true); }}
         onKeyDown={handleKeyDown}
         style={{ width: '100%', boxSizing: 'border-box' }}
       />

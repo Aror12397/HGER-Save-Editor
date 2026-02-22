@@ -287,7 +287,7 @@ export function PokemonEditor({ pk, isPartyForm, onConfirm, onCancel, defaultOTN
 
               <span style={labelStyle}>종류</span>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <SearchComboBox items={GameData.getSpeciesNames()} selectedId={species} onSelect={(id) => {
+                <SearchComboBox items={GameData.getSpeciesNames().slice(0, 1026)} selectedId={species} onSelect={(id) => {
                   setSpecies(id);
                   if (!isNicknamed) setNickname(GameData.getSpeciesName(id));
                   const forms = GameData.getAvailableForms(id);
