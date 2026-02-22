@@ -50,7 +50,7 @@ public sealed class MainForm : Form
     private void InitializeComponent()
     {
         SuspendLayout();
-        Text            = "HGER Save Editor v0.4.1";
+        Text            = "HGER Save Editor v0.4.2";
         Size            = new Size(1010, 620);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox     = false;
